@@ -9,7 +9,7 @@ app.use(express.json())
 app.use(cors())
 
 
-mongoose.connect("mongodb+srv://chauhanpriyanka2804:priyanka%402288@cluster0.bxaqole.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0");
+mongoose.connect("mongodb+srv://eventra_admin:eventra123@eventra-cluster.myc5y82.mongodb.net/");
 
 
 app.post('/signup', (req, res) =>{
