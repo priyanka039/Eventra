@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "name": "eventra",
   "private": true,
   "version": "0.0.0",
@@ -26,5 +27,11 @@
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
     "vite": "^6.3.5"
+=======
+  "dependencies": {
+    "axios": "^1.9.0",
+    "dotenv": "^16.5.0",
+    "mongoose": "^8.14.3"
+>>>>>>> 9adffb4a8081da50138c0fe0aa10d74be9107f21
   }
 }
