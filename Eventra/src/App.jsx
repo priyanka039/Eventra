@@ -1,6 +1,8 @@
+
+
 // src/App.jsx
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import './App.css'
 
 function App() {
@@ -49,11 +51,15 @@ function LoginPage() {
 
 function SignupPage() {
   const [role, setRole] = React.useState('student')
+  const navigate = useNavigate() // Access the navigate function
 
   const handleSignup = (e) => {
     e.preventDefault()
     console.log("Signup with role:", role)
     // Add signup logic here
+    
+    // After signup, navigate to the login page
+    navigate('/')
   }
 
   return (
@@ -79,4 +85,4 @@ function SignupPage() {
   )
 }
 
-export default App;
+export default App
