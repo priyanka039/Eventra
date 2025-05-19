@@ -253,6 +253,7 @@ function PresidentHomepage() {
 function ManagementHomepage() {
   const navigate = useNavigate()
   
+  
   return (
     <div className="homepage-container">
       <header className="header">
