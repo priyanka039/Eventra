@@ -5,11 +5,9 @@ import './App.css'
 
 // Main App Component with Routes
 function App() {
-  // Using state to track if user is logged in and their role
   const [loggedIn, setLoggedIn] = useState(false)
   const [userRole, setUserRole] = useState('')
 
-  // Login handler function - to be passed to LoginPage
   const handleSuccessfulLogin = (role) => {
     setLoggedIn(true)
     setUserRole(role)
@@ -19,25 +17,11 @@ function App() {
     <Router>
       <div className="container">
         <Routes>
-          <Route path="/" element={
-            <LoginPage onLoginSuccess={handleSuccessfulLogin} />
-          } />
+          <Route path="/" element={<LoginPage onLoginSuccess={handleSuccessfulLogin} />} />
           <Route path="/signup" element={<SignupPage />} />
-          <Route path="/student-homepage" element={
-            loggedIn && userRole === 'student' ? 
-              <StudentHomepage /> : 
-              <Navigate to="/" replace />
-          } />
-          <Route path="/president-homepage" element={
-            loggedIn && userRole === 'president' ? 
-              <PresidentHomepage /> : 
-              <Navigate to="/" replace />
-          } />
-          <Route path="/management-homepage" element={
-            loggedIn && userRole === 'management' ? 
-              <ManagementHomepage /> : 
-              <Navigate to="/" replace />
-          } />
+          <Route path="/student-homepage" element={loggedIn && userRole === 'student' ? <StudentHomepage /> : <Navigate to="/" replace />} />
+          <Route path="/president-homepage" element={loggedIn && userRole === 'president' ? <PresidentHomepage /> : <Navigate to="/" replace />} />
+          <Route path="/management-homepage" element={loggedIn && userRole === 'management' ? <ManagementHomepage /> : <Navigate to="/" replace />} />
           <Route path="/discover-events" element={<DiscoverEvents />} />
           <Route path="/event-details/:eventId" element={<EventDetails />} />
           <Route path="/feedback/:eventId" element={<SubmitFeedback />} />
@@ -47,29 +31,46 @@ function App() {
   )
 }
 
-// Separate Components for each route
-
-// Login Page Component
 function LoginPage({ onLoginSuccess }) {
   const [role, setRole] = useState('student')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const navigate = useNavigate()
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
     console.log("Login with role:", role, "Email:", email)
-    
-    // Call the onLoginSuccess prop to update the App state
-    onLoginSuccess(role)
-    
-    // Navigate based on role
-    if (role === 'student') {
-      navigate('/student-homepage')
-    } else if (role === 'president') {
-      navigate('/president-homepage')
-    } else if (role === 'management') {
-      navigate('/management-homepage')
+
+    try {
+      const response = await fetch('http://localhost:5273/api/users/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, role }),
+        credentials: 'include'
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        console.log("Login successful:", data)
+        onLoginSuccess(data.role)
+
+        if (data.role === 'student') {
+          navigate('/student-homepage')
+        } else if (data.role === 'president') {
+          navigate('/president-homepage')
+        } else if (data.role === 'management') {
+          navigate('/management-homepage')
+        }
+      } else {
+        console.error("Login failed:", data.error)
+        alert("Login failed: " + data.error)
+      }
+    } catch (error) {
+      console.error("Error during login fetch:", error)
+      alert("Login failed. Please check your network connection.")
     }
   }
 
@@ -77,29 +78,10 @@ function LoginPage({ onLoginSuccess }) {
     <div className="form-container">
       <h1 className="title">Eventra</h1>
       <h2 className="subtitle">Login</h2>
-
       <form className="form" onSubmit={handleLogin}>
-        <input 
-          className="input" 
-          type="email" 
-          placeholder="Email" 
-          required 
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input 
-          className="input" 
-          type="password" 
-          placeholder="Password" 
-          required 
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <select 
-          value={role} 
-          onChange={(e) => setRole(e.target.value)} 
-          className="input"
-        >
+        <input className="input" type="email" placeholder="Email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input className="input" type="password" placeholder="Password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        <select value={role} onChange={(e) => setRole(e.target.value)} className="input">
           <option value="student">Student</option>
           <option value="president">President</option>
           <option value="management">Management</option>
@@ -113,7 +95,6 @@ function LoginPage({ onLoginSuccess }) {
   )
 }
 
-// Signup Page Component
 function SignupPage() {
   const [role, setRole] = useState('student')
   const [name, setName] = useState('')
@@ -121,50 +102,45 @@ function SignupPage() {
   const [password, setPassword] = useState('')
   const navigate = useNavigate()
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault()
     console.log("Signup with role:", role, "Name:", name, "Email:", email)
-    
-    // Here you would typically register the user with a backend
-    // After successful signup, navigate to the login page
-    navigate('/')
+
+    try {
+      const response = await fetch('http://localhost:5273/api/users/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, email, password, role }),
+        credentials: 'include'
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        console.log("Signup successful:", data)
+        alert("Account created successfully! Please login.")
+        navigate('/')
+      } else {
+        console.error("Signup failed:", data.error)
+        alert("Signup failed: " + data.error)
+      }
+    } catch (error) {
+      console.error("Error during signup fetch:", error)
+      alert("Signup failed. Please check your network connection.")
+    }
   }
 
   return (
     <div className="form-container">
       <h1 className="title">Eventra</h1>
       <h2 className="subtitle">Sign Up</h2>
-
       <form className="form" onSubmit={handleSignup}>
-        <input 
-          className="input" 
-          type="text" 
-          placeholder="Name" 
-          required 
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input 
-          className="input" 
-          type="email" 
-          placeholder="Email" 
-          required 
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input 
-          className="input" 
-          type="password" 
-          placeholder="Password" 
-          required 
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <select 
-          value={role} 
-          onChange={(e) => setRole(e.target.value)} 
-          className="input"
-        >
+        <input className="input" type="text" placeholder="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="input" type="email" placeholder="Email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input className="input" type="password" placeholder="Password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        <select value={role} onChange={(e) => setRole(e.target.value)} className="input">
           <option value="student">Student</option>
           <option value="president">President</option>
           <option value="management">Management</option>
