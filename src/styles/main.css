@@ -1,0 +1,10 @@
+/* Main CSS file that imports all styles */
+@import '../App.css';
+
+/* Import component-specific styles */
+@import './auth.css';
+@import './student.css';
+@import './president.css';
+@import './management.css';
+
+/* You can add additional global styles here */ 
