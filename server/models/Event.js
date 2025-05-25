@@ -4,6 +4,7 @@ const eventSchema = new mongoose.Schema({
   title: String,
   description: String,
   club: String,
+  imageUrl: String, // URL for the event image
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, enum: ['idea', 'pending', 'approved', 'live'], default: 'idea' },
   SOP: String, // File URL

@@ -2,6 +2,7 @@
 const express = require('express');
 const User = require('../models/User');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
 
 // @route   POST /api/users/register
 // @desc    Register a user
@@ -59,12 +60,20 @@ router.post('/login', async (req, res) => {
     if (user.role !== role) {
       return res.status(401).json({ error: 'Invalid user role' });
     }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
     
     res.json({
       _id: user._id,
       name: user.name,
       email: user.email,
-      role: user.role
+      role: user.role,
+      token
     });
   } catch (error) {
     console.error('Login error:', error);
