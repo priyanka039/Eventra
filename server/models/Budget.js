@@ -8,7 +8,8 @@ const budgetSchema = new mongoose.Schema({
     amount: Number,
     category: String
   }],
-  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  status: { type: String, enum: ['submitted', 'pending', 'reviewed', 'approved', 'rejected'], default: 'submitted' },
+  submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdAt: { type: Date, default: Date.now }
 });
 
