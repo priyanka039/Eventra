@@ -7,6 +7,7 @@ const userRoutes = require('./routes/userRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const rsvpRoutes = require('./routes/rsvpRoutes');
 const registrationRoutes = require('./routes/registrationRoutes');
+const feedbackRoutes = require('./routes/feedbackRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -61,6 +62,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/rsvp', rsvpRoutes);
 app.use('/api/registrations', registrationRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
