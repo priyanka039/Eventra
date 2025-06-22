@@ -1,59 +1,271 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getAuthToken } from '../../utils/auth';
+import { FaUserCircle } from 'react-icons/fa';
 
 // President Homepage Component
 export function PresidentHomepage({ onLogout }) {
-  const navigate = useNavigate()
-  const [activeSection, setActiveSection] = useState('dashboard')
-  
-  // Function to render different sections based on activeSection state
+  const navigate = useNavigate();
+  const [activeSection, setActiveSection] = useState('dashboard');
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const currentUser = JSON.parse(localStorage.getItem('eventra_user') || '{}');
+
+  // Fetch president's events
+  useEffect(() => {
+    const fetchEvents = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch('http://localhost:5273/api/events', {
+          headers: { Authorization: `Bearer ${getAuthToken()}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setEvents(data.data);
+        }
+      } catch (err) {
+        // ignore
+      }
+      setLoading(false);
+    };
+    fetchEvents();
+  }, []);
+
+  // Fetch notifications for the president
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch(`http://localhost:5273/api/notifications/user/${currentUser._id}`, {
+          headers: { Authorization: `Bearer ${getAuthToken()}` },
+        });
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setNotifications(data);
+        } else if (data.success && Array.isArray(data.data)) {
+          setNotifications(data.data);
+        }
+      } catch (err) {}
+    };
+    if (currentUser._id) fetchNotifications();
+  }, [currentUser._id]);
+
+  const markAsRead = async (notificationId) => {
+    try {
+      await fetch(`http://localhost:5273/api/notifications/${notificationId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+        body: JSON.stringify({ read: true })
+      });
+      setNotifications(notifications => notifications.map(n => n._id === notificationId ? { ...n, read: true } : n));
+    } catch (err) {}
+  };
+
+  // Create event
+  const handleCreateEvent = async (formData) => {
+    try {
+      const res = await fetch('http://localhost:5273/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuthToken()}`,
+        },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEvents((prev) => [data.data, ...prev]);
+        alert('Event created successfully!');
+      } else {
+        alert(data.message || 'Failed to create event');
+      }
+    } catch (err) {
+      alert('Error creating event');
+    }
+  };
+
+  // Upload SOP (dummy, as backend endpoint is not shown)
+  const handleUploadSOP = async (eventId, sopFile) => {
+    // Example: POST /api/events/:id/sop
+    // You may need to adjust this to match your backend
+    const formData = new FormData();
+    formData.append('sop', sopFile);
+    try {
+      const res = await fetch(`http://localhost:5273/api/events/${eventId}/sop`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('SOP uploaded successfully!');
+      } else {
+        alert(data.message || 'Failed to upload SOP');
+      }
+    } catch (err) {
+      alert('Error uploading SOP');
+    }
+  };
+
+  // Submit budget (dummy, as backend endpoint is not shown)
+  const handleSubmitBudget = async (eventId, budgetData) => {
+    // Example: POST /api/budgets
+    try {
+      const res = await fetch('http://localhost:5273/api/budgets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuthToken()}`,
+        },
+        body: JSON.stringify({ ...budgetData, eventId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Budget submitted successfully!');
+      } else {
+        alert(data.message || 'Failed to submit budget');
+      }
+    } catch (err) {
+      alert('Error submitting budget');
+    }
+  };
+
+  // Dashboard sections
   const renderSection = () => {
     switch (activeSection) {
       case 'createEvent':
-        return <CreateEventSection />
+        return <CreateEventSection onCreate={handleCreateEvent} setActiveSection={setActiveSection} />;
       case 'uploadSOP':
-        return <UploadSOPSection />
-      case 'assignRoles':
-        return <AssignRolesSection />
+        return <UploadSOPSection events={events} onUpload={handleUploadSOP} setActiveSection={setActiveSection} />;
       case 'submitBudget':
-        return <SubmitBudgetSection />
+        return <SubmitBudgetSection events={events} onSubmit={handleSubmitBudget} setActiveSection={setActiveSection} />;
       case 'trackApproval':
-        return <TrackApprovalSection />
-      case 'publishEvent':
-        return <PublishEventSection />
-      case 'monitorAttendance':
-        return <MonitorAttendanceSection />
+        return <TrackApprovalSection events={events} loading={loading} setActiveSection={setActiveSection} />;
       default:
-        return <DashboardSection setActiveSection={setActiveSection} />
+        return <DashboardSection setActiveSection={setActiveSection} />;
     }
-  }
-  
+  };
+
   return (
     <div className="homepage-container">
       <header className="header">
-        <h1>President Dashboard</h1>
-        <nav className="nav">
-          <button 
-            onClick={() => setActiveSection('dashboard')} 
-            className={`nav-button ${activeSection === 'dashboard' ? 'active' : ''}`}
+        <div style={{display:'flex',alignItems:'center',gap:'1.5rem'}}>
+          <h1 style={{margin:0}}>Eventra</h1>
+        </div>
+        <nav className="nav" style={{gap:'0.5rem'}}>
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="nav-button"
+            style={{
+              borderRadius:'999px',
+              padding:'0.5em 1.3em',
+              background:'#23272f',
+              color:'#8be9fd',
+              fontWeight:700,
+              fontSize:'1.08em',
+              border:'none',
+              outline: showNotifications ? '2px solid #8be9fd' : 'none',
+              boxShadow: showNotifications ? '0 0 0 2px #8be9fd' : 'none',
+              transition:'box-shadow 0.2s',
+              cursor:'pointer',
+              display:'flex',
+              alignItems:'center',
+              gap:'0.6em',
+              letterSpacing:'0.01em',
+              position:'relative'
+            }}
+            aria-label="Notifications"
+            tabIndex={0}
+            onBlur={() => setShowNotifications(false)}
           >
-            Dashboard
+            Notifications
+            {notifications.filter(n => !n.read).length > 0 && (
+              <span style={{
+                marginLeft:'0.5em',
+                background:'#ff5555',
+                color:'#fff',
+                borderRadius:'999px',
+                fontSize:'0.9em',
+                padding:'0.1em 0.7em',
+                fontWeight:700,
+                boxShadow:'0 1px 4px #0006',
+                minWidth:'1.7em',
+                textAlign:'center',
+                display:'inline-block'
+              }}>{notifications.filter(n => !n.read).length}</span>
+            )}
           </button>
-          <button onClick={onLogout} className="nav-button logout">
-            Logout
+          <button
+            onClick={() => setShowProfile(!showProfile)}
+            className="nav-button"
+            style={{
+              borderRadius:'50%',
+              width:44,
+              height:44,
+              background:'#23272f',
+              color:'#8be9fd',
+              fontWeight:700,
+              display:'flex',
+              alignItems:'center',
+              justifyContent:'center',
+              boxShadow: showProfile ? '0 0 0 2px #8be9fd' : 'none',
+              transition:'box-shadow 0.2s',
+              border:'none',
+              outline: showProfile ? '2px solid #8be9fd' : 'none',
+              cursor:'pointer',
+              fontSize:'1.2em',
+              overflow:'visible'
+            }}
+            aria-label="Profile"
+            tabIndex={0}
+            onBlur={() => setShowProfile(false)}
+          >
+            {currentUser.name?.charAt(0)?.toUpperCase() || 'U'}
           </button>
         </nav>
+        {showProfile && (
+          <div style={{position:'absolute',top:'60px',right:'20px',background:'#23272f',color:'#fff',padding:'1.2rem',borderRadius:'12px',zIndex:1000,minWidth:'240px',boxShadow:'0 2px 16px #000a',fontSize:'1.08em',border:'1.5px solid #444'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'1rem',marginBottom:'1rem'}}>
+              <div style={{background:'#8be9fd',borderRadius:'50%',width:54,height:54,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'2em',fontWeight:700,color:'#23272f',boxShadow:'0 2px 8px #0003'}}>
+                <FaUserCircle size={36} />
+              </div>
+              <div>
+                <div style={{fontWeight:700,fontSize:'1.13em',color:'#fff'}}>{currentUser.name}</div>
+                <div style={{fontSize:'0.97em',color:'#aaa'}}>{currentUser.email}</div>
+              </div>
+            </div>
+            <div style={{borderTop:'1px solid #444',margin:'0.7rem 0'}}></div>
+            <div style={{marginBottom:'0.7rem',fontStyle:'italic',color:'#8be9fd'}}>🌟 Welcome back, {currentUser.name?.split(' ')[0] || 'User'}! Ready to lead your next event?</div>
+            <button onClick={onLogout} className="nav-button logout" style={{width:'100%',marginBottom:'0.5rem'}}>Logout</button>
+            <button onClick={()=>setShowProfile(false)} style={{width:'100%'}}>Close</button>
+          </div>
+        )}
+        {showNotifications && (
+          <div className="notification-panel" style={{position:'absolute',top:'60px',right:'80px',background:'#23272f',color:'#fff',padding:'1rem',borderRadius:'10px',zIndex:1000,minWidth:'320px',maxWidth:'400px',boxShadow:'0 2px 16px #000a',border:'1.5px solid #444'}}>
+            <h3 style={{marginTop:0}}>Notifications</h3>
+            {notifications.length === 0 ? <p>No notifications.</p> : (
+              <ul style={{listStyle:'none',padding:0}}>
+                {notifications.map(n => (
+                  <li key={n._id} style={{marginBottom:'1rem',background:n.read?'#333':'#444',padding:'0.5rem',borderRadius:'6px'}}>
+                    <div>{n.message}</div>
+                    <div style={{fontSize:'0.8em',color:'#aaa'}}>{new Date(n.createdAt).toLocaleString()}</div>
+                    {!n.read && <button onClick={() => markAsRead(n._id)} style={{marginTop:'0.5rem'}}>Mark as read</button>}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button onClick={() => setShowNotifications(false)} style={{marginTop:'1rem'}}>Close</button>
+          </div>
+        )}
       </header>
-      
-      <main className="main-content">
-        {renderSection()}
-      </main>
-      
+      <main className="main-content">{renderSection()}</main>
       <footer className="footer">
         <p>© 2025 Eventra - Your Campus Event Management System</p>
       </footer>
     </div>
-  )
+  );
 }
 
 // Dashboard Section Component
@@ -64,511 +276,190 @@ function DashboardSection({ setActiveSection }) {
         <h2>Welcome, Club President!</h2>
         <p>Here you can manage your club's events and track participation.</p>
       </section>
-      
       <section className="quick-actions">
         <h3>President Functions</h3>
         <div className="action-buttons">
-          <button 
-            onClick={() => setActiveSection('createEvent')} 
-            className="action-button"
-          >
-            Create Event
-          </button>
-          <button 
-            onClick={() => setActiveSection('uploadSOP')} 
-            className="action-button"
-          >
-            Upload SOP
-          </button>
-          <button 
-            onClick={() => setActiveSection('assignRoles')} 
-            className="action-button"
-          >
-            Assign Roles
-          </button>
-          <button 
-            onClick={() => setActiveSection('submitBudget')} 
-            className="action-button"
-          >
-            Submit Budget
-          </button>
-          <button 
-            onClick={() => setActiveSection('trackApproval')} 
-            className="action-button"
-          >
-            Track Approval
-          </button>
-          <button 
-            onClick={() => setActiveSection('publishEvent')} 
-            className="action-button"
-          >
-            Publish Event
-          </button>
-          <button 
-            onClick={() => setActiveSection('monitorAttendance')} 
-            className="action-button"
-          >
-            Monitor Attendance
-          </button>
-        </div>
-      </section>
-      
-      <section className="upcoming-events">
-        <h3>Your Club's Events</h3>
-        <div className="events-list">
-          <div className="no-events">
-            <p>No events created yet.</p>
-          </div>
+          <button onClick={() => setActiveSection('createEvent')} className="action-button">Create Event</button>
+          <button onClick={() => setActiveSection('uploadSOP')} className="action-button">Upload SOP</button>
+          <button onClick={() => setActiveSection('submitBudget')} className="action-button">Submit Budget</button>
+          <button onClick={() => setActiveSection('trackApproval')} className="action-button">Track Approval</button>
         </div>
       </section>
     </>
-  )
+  );
 }
 
-// Create Event Section
-function CreateEventSection() {
+function CreateEventSection({ onCreate, setActiveSection }) {
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    club: '',
+    startDate: '',
+    endDate: '',
+    location: '',
+    capacity: 1,
+    registrationDeadline: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    await onCreate(formData);
+    setLoading(false);
+    setFormData({
+      title: '', description: '', club: '', startDate: '', endDate: '', location: '', capacity: 1, registrationDeadline: ''
+    });
+  };
+
   return (
-    <div className="section-container">
+    <section>
+      <button onClick={() => setActiveSection('dashboard')} className="back-button" style={{marginBottom:'1rem'}}>← Back to Dashboard</button>
       <h2>Create New Event</h2>
-      <div className="form-wrapper">
-        <form className="form">
-          <div className="form-group">
-            <label htmlFor="eventTitle">Event Title</label>
-            <input 
-              type="text" 
-              id="eventTitle" 
-              className="input" 
-              placeholder="Enter event title" 
-              required 
-            />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="eventDate">Event Date</label>
-            <input 
-              type="date" 
-              id="eventDate" 
-              className="input" 
-              required 
-            />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="eventTime">Event Time</label>
-            <input 
-              type="time" 
-              id="eventTime" 
-              className="input" 
-              required 
-            />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="eventLocation">Event Location</label>
-            <input 
-              type="text" 
-              id="eventLocation" 
-              className="input" 
-              placeholder="Enter event location" 
-              required 
-            />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="eventDescription">Event Description</label>
-            <textarea 
-              id="eventDescription" 
-              className="input textarea" 
-              placeholder="Describe your event..." 
-              rows="4" 
-              required 
-            ></textarea>
-          </div>
-          
-          <button type="submit" className="submit-button">Create Event</button>
-        </form>
-      </div>
-    </div>
-  )
+      <form onSubmit={handleSubmit} className="registration-form">
+        <div className="form-group">
+          <label>Title</label>
+          <input type="text" name="title" value={formData.title} onChange={handleChange} required />
+        </div>
+        <div className="form-group">
+          <label>Description</label>
+          <textarea name="description" value={formData.description} onChange={handleChange} required />
+        </div>
+        <div className="form-group">
+          <label>Club</label>
+          <input type="text" name="club" value={formData.club} onChange={handleChange} required />
+        </div>
+        <div className="form-group">
+          <label>Start Date</label>
+          <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required />
+        </div>
+        <div className="form-group">
+          <label>End Date</label>
+          <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required />
+        </div>
+        <div className="form-group">
+          <label>Location</label>
+          <input type="text" name="location" value={formData.location} onChange={handleChange} required />
+        </div>
+        <div className="form-group">
+          <label>Capacity</label>
+          <input type="number" name="capacity" value={formData.capacity} onChange={handleChange} required min={1} />
+        </div>
+        <div className="form-group">
+          <label>Registration Deadline</label>
+          <input type="date" name="registrationDeadline" value={formData.registrationDeadline} onChange={handleChange} required />
+        </div>
+        <button type="submit" className="submit-button" disabled={loading}>{loading ? 'Creating...' : 'Create Event'}</button>
+      </form>
+    </section>
+  );
 }
 
-// Upload SOP Section
-function UploadSOPSection() {
-  return (
-    <div className="section-container">
-      <h2>Upload Standard Operating Procedure</h2>
-      <div className="form-wrapper">
-        <form className="form">
-          <div className="form-group">
-            <label htmlFor="eventSelect">Select Event</label>
-            <select id="eventSelect" className="input" required>
-              <option value="">Select an event</option>
-              <option value="1">Tech Workshop</option>
-              <option value="2">Music Festival</option>
-            </select>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="sopFile">SOP Document</label>
-            <input 
-              type="file" 
-              id="sopFile" 
-              className="input" 
-              required 
-            />
-            <small>Upload a PDF or DOC file with your event's SOP</small>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="sopNotes">Additional Notes</label>
-            <textarea 
-              id="sopNotes" 
-              className="input textarea" 
-              placeholder="Any additional information or notes..." 
-              rows="3"
-            ></textarea>
-          </div>
-          
-          <button type="submit" className="submit-button">Upload SOP</button>
-        </form>
-      </div>
-    </div>
-  )
-}
+function UploadSOPSection({ events, onUpload, setActiveSection }) {
+  const [selectedEvent, setSelectedEvent] = useState('');
+  const [sopFile, setSopFile] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-// Assign Roles Section
-function AssignRolesSection() {
-  return (
-    <div className="section-container">
-      <h2>Assign Roles for Event</h2>
-      <div className="form-wrapper">
-        <form className="form">
-          <div className="form-group">
-            <label htmlFor="roleEventSelect">Select Event</label>
-            <select id="roleEventSelect" className="input" required>
-              <option value="">Select an event</option>
-              <option value="1">Tech Workshop</option>
-              <option value="2">Music Festival</option>
-            </select>
-          </div>
-          
-          <div className="role-assignment-container">
-            <h3>Team Members</h3>
-            
-            <div className="role-item">
-              <div className="role-name">Event Coordinator</div>
-              <select className="input role-select">
-                <option value="">Assign a member</option>
-                <option value="member1">John Smith</option>
-                <option value="member2">Sarah Johnson</option>
-                <option value="member3">Michael Chen</option>
-              </select>
-            </div>
-            
-            <div className="role-item">
-              <div className="role-name">Registration Manager</div>
-              <select className="input role-select">
-                <option value="">Assign a member</option>
-                <option value="member1">John Smith</option>
-                <option value="member2">Sarah Johnson</option>
-                <option value="member3">Michael Chen</option>
-              </select>
-            </div>
-            
-            <div className="role-item">
-              <div className="role-name">Technical Support</div>
-              <select className="input role-select">
-                <option value="">Assign a member</option>
-                <option value="member1">John Smith</option>
-                <option value="member2">Sarah Johnson</option>
-                <option value="member3">Michael Chen</option>
-              </select>
-            </div>
-            
-            <div className="role-item">
-              <div className="role-name">Marketing</div>
-              <select className="input role-select">
-                <option value="">Assign a member</option>
-                <option value="member1">John Smith</option>
-                <option value="member2">Sarah Johnson</option>
-                <option value="member3">Michael Chen</option>
-              </select>
-            </div>
-          </div>
-          
-          <button type="submit" className="submit-button">Save Role Assignments</button>
-        </form>
-      </div>
-    </div>
-  )
-}
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedEvent || !sopFile) return alert('Select event and SOP file');
+    setLoading(true);
+    await onUpload(selectedEvent, sopFile);
+    setLoading(false);
+    setSelectedEvent('');
+    setSopFile(null);
+  };
 
-// Submit Budget Section
-function SubmitBudgetSection() {
   return (
-    <div className="section-container">
-      <h2>Submit Event Budget</h2>
-      <div className="form-wrapper">
-        <form className="form">
-          <div className="form-group">
-            <label htmlFor="budgetEventSelect">Select Event</label>
-            <select id="budgetEventSelect" className="input" required>
-              <option value="">Select an event</option>
-              <option value="1">Tech Workshop</option>
-              <option value="2">Music Festival</option>
-            </select>
-          </div>
-          
-          <div className="budget-items-container">
-            <h3>Budget Items</h3>
-            
-            <div className="budget-item">
-              <input type="text" className="input" placeholder="Item name" />
-              <input type="number" className="input" placeholder="Amount" min="0" step="0.01" />
-            </div>
-            
-            <div className="budget-item">
-              <input type="text" className="input" placeholder="Item name" />
-              <input type="number" className="input" placeholder="Amount" min="0" step="0.01" />
-            </div>
-            
-            <div className="budget-item">
-              <input type="text" className="input" placeholder="Item name" />
-              <input type="number" className="input" placeholder="Amount" min="0" step="0.01" />
-            </div>
-            
-            <button type="button" className="action-button">+ Add More Items</button>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="budgetFile">Supporting Documents</label>
-            <input 
-              type="file" 
-              id="budgetFile" 
-              className="input" 
-            />
-            <small>Upload any supporting documents or quotes (optional)</small>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="budgetNotes">Additional Notes</label>
-            <textarea 
-              id="budgetNotes" 
-              className="input textarea" 
-              placeholder="Any additional notes about the budget..." 
-              rows="3"
-            ></textarea>
-          </div>
-          
-          <button type="submit" className="submit-button">Submit Budget for Approval</button>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-// Track Approval Section
-function TrackApprovalSection() {
-  return (
-    <div className="section-container">
-      <h2>Track Event Approvals</h2>
-      
-      <div className="approval-status-container">
-        <div className="approval-card">
-          <h3>Tech Workshop</h3>
-          <div className="approval-info">
-            <div className="approval-item">
-              <span className="approval-label">SOP Status:</span>
-              <span className="approval-status approved">Approved</span>
-            </div>
-            <div className="approval-item">
-              <span className="approval-label">Budget Status:</span>
-              <span className="approval-status pending">Pending</span>
-            </div>
-            <div className="approval-item">
-              <span className="approval-label">Final Approval:</span>
-              <span className="approval-status pending">Pending</span>
-            </div>
-            <div className="approval-item">
-              <span className="approval-label">Submitted:</span>
-              <span className="approval-date">May 12, 2025</span>
-            </div>
-          </div>
-          <div className="approval-notes">
-            <strong>Management Notes:</strong>
-            <p>Please revise budget and resubmit with more details on equipment costs.</p>
-          </div>
-        </div>
-        
-        <div className="approval-card">
-          <h3>Music Festival</h3>
-          <div className="approval-info">
-            <div className="approval-item">
-              <span className="approval-label">SOP Status:</span>
-              <span className="approval-status pending">Pending</span>
-            </div>
-            <div className="approval-item">
-              <span className="approval-label">Budget Status:</span>
-              <span className="approval-status pending">Pending</span>
-            </div>
-            <div className="approval-item">
-              <span className="approval-label">Final Approval:</span>
-              <span className="approval-status pending">Pending</span>
-            </div>
-            <div className="approval-item">
-              <span className="approval-label">Submitted:</span>
-              <span className="approval-date">May 15, 2025</span>
-            </div>
-          </div>
-          <div className="approval-notes">
-            <strong>Management Notes:</strong>
-            <p>No notes yet.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Publish Event Section
-function PublishEventSection() {
-  return (
-    <div className="section-container">
-      <h2>Publish Events</h2>
-      
-      <div className="publishable-events-container">
-        <div className="publishable-event">
-          <h3>Tech Workshop</h3>
-          <div className="event-status">
-            <span className="status-label">Approval Status:</span>
-            <span className="status-value pending">Pending Approval</span>
-          </div>
-          <div className="event-ready-status">
-            <span className="status-label">SOP:</span>
-            <span className="status-value completed">Completed</span>
-          </div>
-          <div className="event-ready-status">
-            <span className="status-label">Roles:</span>
-            <span className="status-value completed">Assigned</span>
-          </div>
-          <div className="event-ready-status">
-            <span className="status-label">Budget:</span>
-            <span className="status-value pending">Pending</span>
-          </div>
-          <button className="action-button" disabled>Publish (Awaiting Approval)</button>
-        </div>
-        
-        <div className="publishable-event">
-          <h3>Music Festival</h3>
-          <div className="event-status">
-            <span className="status-label">Approval Status:</span>
-            <span className="status-value approved">Approved</span>
-          </div>
-          <div className="event-ready-status">
-            <span className="status-label">SOP:</span>
-            <span className="status-value completed">Completed</span>
-          </div>
-          <div className="event-ready-status">
-            <span className="status-label">Roles:</span>
-            <span className="status-value completed">Assigned</span>
-          </div>
-          <div className="event-ready-status">
-            <span className="status-label">Budget:</span>
-            <span className="status-value completed">Approved</span>
-          </div>
-          <button className="submit-button">Publish Event</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Monitor Attendance Section
-function MonitorAttendanceSection() {
-  return (
-    <div className="section-container">
-      <h2>Monitor Event Attendance</h2>
-      
-      <div className="event-selection">
-        <label htmlFor="attendanceEventSelect">Select Event:</label>
-        <select id="attendanceEventSelect" className="input">
-          <option value="1">Tech Workshop</option>
-          <option value="2">Music Festival</option>
-        </select>
-      </div>
-      
-      <div className="attendance-stats">
-        <div className="stat-card">
-          <div className="stat-title">Registered</div>
-          <div className="stat-value">45</div>
-          <div className="stat-description">Total registrations</div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-title">Check-ins</div>
-          <div className="stat-value">38</div>
-          <div className="stat-description">Attendees who checked in</div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-title">No-shows</div>
-          <div className="stat-value">7</div>
-          <div className="stat-description">Registered but didn't attend</div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-title">Attendance Rate</div>
-          <div className="stat-value">84%</div>
-          <div className="stat-description">Percentage who attended</div>
-        </div>
-      </div>
-      
-      <div className="attendance-list">
-        <h3>Attendee List</h3>
-        <div className="list-controls">
-          <input type="text" className="input search-input" placeholder="Search attendees..." />
-          <select className="input filter-select">
-            <option value="all">All</option>
-            <option value="checked-in">Checked In</option>
-            <option value="not-checked-in">Not Checked In</option>
+    <section>
+      <button onClick={() => setActiveSection('dashboard')} className="back-button" style={{marginBottom:'1rem'}}>← Back to Dashboard</button>
+      <h2>Upload SOP for Event</h2>
+      <form onSubmit={handleSubmit} className="registration-form">
+        <div className="form-group">
+          <label>Select Event</label>
+          <select value={selectedEvent} onChange={e => setSelectedEvent(e.target.value)} required>
+            <option value="">Select Event</option>
+            {events.map(ev => <option key={ev._id} value={ev._id}>{ev.title}</option>)}
           </select>
         </div>
-        
-        <table className="attendance-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Roll Number</th>
-              <th>Course</th>
-              <th>Check-in Time</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>John Smith</td>
-              <td>R12345</td>
-              <td>Computer Science</td>
-              <td>2:15 PM</td>
-              <td><span className="status-badge checked-in">Checked In</span></td>
-            </tr>
-            <tr>
-              <td>Emma Wilson</td>
-              <td>R67890</td>
-              <td>Electrical Engineering</td>
-              <td>2:05 PM</td>
-              <td><span className="status-badge checked-in">Checked In</span></td>
-            </tr>
-            <tr>
-              <td>Michael Chen</td>
-              <td>R24680</td>
-              <td>Business Administration</td>
-              <td>-</td>
-              <td><span className="status-badge not-checked-in">Not Checked In</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
+        <div className="form-group">
+          <label>SOP File (PDF)</label>
+          <input type="file" accept="application/pdf" onChange={e => setSopFile(e.target.files[0])} required />
+        </div>
+        <button type="submit" className="submit-button" disabled={loading}>{loading ? 'Uploading...' : 'Upload SOP'}</button>
+      </form>
+    </section>
+  );
+}
+
+function SubmitBudgetSection({ events, onSubmit, setActiveSection }) {
+  const [selectedEvent, setSelectedEvent] = useState('');
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedEvent || !amount || !description) return alert('Fill all fields');
+    setLoading(true);
+    await onSubmit(selectedEvent, { amount, description });
+    setLoading(false);
+    setSelectedEvent('');
+    setAmount('');
+    setDescription('');
+  };
+
+  return (
+    <section>
+      <button onClick={() => setActiveSection('dashboard')} className="back-button" style={{marginBottom:'1rem'}}>← Back to Dashboard</button>
+      <h2>Submit Budget for Event</h2>
+      <form onSubmit={handleSubmit} className="registration-form">
+        <div className="form-group">
+          <label>Select Event</label>
+          <select value={selectedEvent} onChange={e => setSelectedEvent(e.target.value)} required>
+            <option value="">Select Event</option>
+            {events.map(ev => <option key={ev._id} value={ev._id}>{ev.title}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Amount</label>
+          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required min={1} />
+        </div>
+        <div className="form-group">
+          <label>Description</label>
+          <textarea value={description} onChange={e => setDescription(e.target.value)} required />
+        </div>
+        <button type="submit" className="submit-button" disabled={loading}>{loading ? 'Submitting...' : 'Submit Budget'}</button>
+      </form>
+    </section>
+  );
+}
+
+function TrackApprovalSection({ events, loading, setActiveSection }) {
+  return (
+    <section>
+      <button onClick={() => setActiveSection('dashboard')} className="back-button" style={{marginBottom:'1rem'}}>← Back to Dashboard</button>
+      <h2>Track Event Approval Status</h2>
+      {loading ? <div>Loading events...</div> : (
+        <div className="events-list">
+          {events.length === 0 ? <p>No events created yet.</p> : (
+            <div className="registered-events-grid">
+              {events.map(event => (
+                <div key={event._id} className="event-card">
+                  <h3>{event.title}</h3>
+                  <p><strong>Date:</strong> {event.startDate?.slice(0,10)}</p>
+                  <p><strong>Status:</strong> {event.status}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
 } 

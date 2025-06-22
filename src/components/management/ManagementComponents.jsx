@@ -1,20 +1,67 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getAuthToken } from '../../utils/auth'
 
 // Management Homepage Component
 export function ManagementHomepage({ onLogout }) {
   const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState('dashboard')
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [currentUser, setCurrentUser] = useState({})
   
+  // Fetch all events
+  useEffect(() => {
+    const fetchEvents = async () => {
+      setLoading(true)
+      try {
+        const res = await fetch('http://localhost:5273/api/events', {
+          headers: { Authorization: `Bearer ${getAuthToken()}` },
+        })
+        const data = await res.json()
+        if (data.success) {
+          setEvents(data.data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch events:', err)
+      }
+      setLoading(false)
+    }
+    fetchEvents()
+  }, [])
+
+  // Approve or reject event
+  const updateEventStatus = async (eventId, newStatus) => {
+    try {
+      const res = await fetch(`http://localhost:5273/api/events/${eventId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuthToken()}`,
+        },
+        body: JSON.stringify({ status: newStatus })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setEvents(events => events.map(ev => ev._id === eventId ? { ...ev, status: newStatus } : ev))
+      } else {
+        alert(data.message || 'Failed to update event status')
+      }
+    } catch (err) {
+      alert('Error updating event status')
+    }
+  }
+
   // Function to render different sections based on activeSection state
   const renderSection = () => {
     switch (activeSection) {
-      case 'reviewSOPs':
-        return <ReviewSOPsSection />
-      case 'approveBudgets':
-        return <ApproveBudgetsSection />
+      case 'reviewEvents':
+        return <ReviewEventsSection events={events} loading={loading} onApprove={id => updateEventStatus(id, 'approved')} onReject={id => updateEventStatus(id, 'rejected')} setActiveSection={setActiveSection} />
       case 'monitorStatus':
-        return <MonitorStatusSection />
+        return <MonitorStatusSection events={events} loading={loading} setActiveSection={setActiveSection} />
       default:
         return <DashboardSection setActiveSection={setActiveSection} />
     }
@@ -23,16 +70,78 @@ export function ManagementHomepage({ onLogout }) {
   return (
     <div className="homepage-container">
       <header className="header">
-        <h1>Management Dashboard</h1>
-        <nav className="nav">
-          <button 
-            onClick={() => setActiveSection('dashboard')} 
-            className={`nav-button ${activeSection === 'dashboard' ? 'active' : ''}`}
+        <div style={{display:'flex',alignItems:'center',gap:'1.5rem'}}>
+          <h1 style={{margin:0}}>Eventra</h1>
+        </div>
+        <nav className="nav" style={{gap:'0.5rem'}}>
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="nav-button"
+            style={{
+              borderRadius:'999px',
+              padding:'0.5em 1.3em',
+              background:'#23272f',
+              color:'#8be9fd',
+              fontWeight:700,
+              fontSize:'1.08em',
+              border:'none',
+              outline: showNotifications ? '2px solid #8be9fd' : 'none',
+              boxShadow: showNotifications ? '0 0 0 2px #8be9fd' : 'none',
+              transition:'box-shadow 0.2s',
+              cursor:'pointer',
+              display:'flex',
+              alignItems:'center',
+              gap:'0.6em',
+              letterSpacing:'0.01em',
+              position:'relative'
+            }}
+            aria-label="Notifications"
+            tabIndex={0}
+            onBlur={() => setShowNotifications(false)}
           >
-            Dashboard
+            Notifications
+            {notifications.filter(n => !n.read).length > 0 && (
+              <span style={{
+                marginLeft:'0.5em',
+                background:'#ff5555',
+                color:'#fff',
+                borderRadius:'999px',
+                fontSize:'0.9em',
+                padding:'0.1em 0.7em',
+                fontWeight:700,
+                boxShadow:'0 1px 4px #0006',
+                minWidth:'1.7em',
+                textAlign:'center',
+                display:'inline-block'
+              }}>{notifications.filter(n => !n.read).length}</span>
+            )}
           </button>
-          <button onClick={onLogout} className="nav-button logout">
-            Logout
+          <button
+            onClick={() => setShowProfile(!showProfile)}
+            className="nav-button"
+            style={{
+              borderRadius:'50%',
+              width:44,
+              height:44,
+              background:'#23272f',
+              color:'#8be9fd',
+              fontWeight:700,
+              display:'flex',
+              alignItems:'center',
+              justifyContent:'center',
+              boxShadow: showProfile ? '0 0 0 2px #8be9fd' : 'none',
+              transition:'box-shadow 0.2s',
+              border:'none',
+              outline: showProfile ? '2px solid #8be9fd' : 'none',
+              cursor:'pointer',
+              fontSize:'1.2em',
+              overflow:'visible'
+            }}
+            aria-label="Profile"
+            tabIndex={0}
+            onBlur={() => setShowProfile(false)}
+          >
+            {currentUser.name?.charAt(0)?.toUpperCase() || 'U'}
           </button>
         </nav>
       </header>
@@ -53,31 +162,15 @@ function DashboardSection({ setActiveSection }) {
   return (
     <>
       <section className="welcome-section">
-        <h2>Welcome, Management Staff!</h2>
-        <p>Here you can oversee all campus events, clubs, and activities.</p>
+        <h2>Welcome, Management!</h2>
+        <p>Review, approve, and monitor all campus events and budgets here.</p>
       </section>
       
       <section className="quick-actions">
         <h3>Management Functions</h3>
         <div className="action-buttons">
-          <button 
-            onClick={() => setActiveSection('reviewSOPs')} 
-            className="action-button"
-          >
-            Review Pending SOPs
-          </button>
-          <button 
-            onClick={() => setActiveSection('approveBudgets')} 
-            className="action-button"
-          >
-            Approve/Reject Budgets
-          </button>
-          <button 
-            onClick={() => setActiveSection('monitorStatus')} 
-            className="action-button"
-          >
-            Monitor Event Status
-          </button>
+          <button onClick={() => setActiveSection('reviewEvents')} className="action-button">Review Events</button>
+          <button onClick={() => setActiveSection('monitorStatus')} className="action-button">Monitor Events</button>
         </div>
       </section>
       
@@ -114,454 +207,58 @@ function DashboardSection({ setActiveSection }) {
   )
 }
 
-// Review SOPs Section
-function ReviewSOPsSection() {
+function ReviewEventsSection({ events, loading, onApprove, onReject, setActiveSection }) {
+  const pendingEvents = events.filter(ev => ev.status === 'pending' || ev.status === 'idea')
   return (
-    <div className="section-container">
-      <h2>Review Standard Operating Procedures</h2>
-      
-      <div className="filter-bar">
-        <select className="input filter-select">
-          <option value="all">All SOPs</option>
-          <option value="pending">Pending Review</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
-        <input type="text" className="input search-input" placeholder="Search by event or club..." />
-      </div>
-      
-      <div className="sop-list">
-        <div className="sop-item pending">
-          <div className="sop-details">
-            <h3>Music Festival</h3>
-            <div className="sop-meta">
-              <span className="sop-club">Music Society</span>
-              <span className="sop-date">Submitted: May 15, 2025</span>
+    <section>
+      <button onClick={() => setActiveSection('dashboard')} className="back-button" style={{marginBottom:'1rem'}}>← Back to Dashboard</button>
+      <h2>Events Awaiting Approval</h2>
+      {loading ? <div>Loading events...</div> : (
+        <div className="events-list">
+          {pendingEvents.length === 0 ? <p>No events pending approval.</p> : (
+            <div className="registered-events-grid">
+              {pendingEvents.map(event => (
+                <div key={event._id} className="event-card">
+                  <h3>{event.title}</h3>
+                  <p><strong>Date:</strong> {event.startDate?.slice(0,10)}</p>
+                  <p><strong>Location:</strong> {event.location}</p>
+                  <p><strong>Status:</strong> {event.status}</p>
+                  <div className="event-actions">
+                    <button onClick={() => onApprove(event._id)} className="event-button">Approve</button>
+                    <button onClick={() => onReject(event._id)} className="event-button secondary">Reject</button>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="sop-description">
-              <p>SOP for annual campus-wide music festival featuring student performances.</p>
-            </div>
-            <div className="sop-file">
-              <span className="file-icon">📄</span>
-              <span className="file-name">MusicFestival_SOP.pdf</span>
-              <button className="action-button small">View Document</button>
-            </div>
-          </div>
-          <div className="sop-actions">
-            <div className="sop-status pending">Pending Review</div>
-            <div className="action-buttons">
-              <button className="submit-button">Approve</button>
-              <button className="cancel-button">Reject</button>
-            </div>
-            <div className="form-group">
-              <label>Notes to President:</label>
-              <textarea className="input textarea" placeholder="Add notes for the club president..."></textarea>
-            </div>
-          </div>
+          )}
         </div>
-        
-        <div className="sop-item pending">
-          <div className="sop-details">
-            <h3>Hackathon 2025</h3>
-            <div className="sop-meta">
-              <span className="sop-club">Coding Club</span>
-              <span className="sop-date">Submitted: May 14, 2025</span>
-            </div>
-            <div className="sop-description">
-              <p>24-hour coding competition for students to showcase their development skills.</p>
-            </div>
-            <div className="sop-file">
-              <span className="file-icon">📄</span>
-              <span className="file-name">Hackathon_SOP.pdf</span>
-              <button className="action-button small">View Document</button>
-            </div>
-          </div>
-          <div className="sop-actions">
-            <div className="sop-status pending">Pending Review</div>
-            <div className="action-buttons">
-              <button className="submit-button">Approve</button>
-              <button className="cancel-button">Reject</button>
-            </div>
-            <div className="form-group">
-              <label>Notes to President:</label>
-              <textarea className="input textarea" placeholder="Add notes for the club president..."></textarea>
-            </div>
-          </div>
-        </div>
-        
-        <div className="sop-item approved">
-          <div className="sop-details">
-            <h3>Tech Workshop</h3>
-            <div className="sop-meta">
-              <span className="sop-club">CS Club</span>
-              <span className="sop-date">Submitted: May 10, 2025</span>
-            </div>
-            <div className="sop-description">
-              <p>Workshop on web development technologies and tools.</p>
-            </div>
-            <div className="sop-file">
-              <span className="file-icon">📄</span>
-              <span className="file-name">TechWorkshop_SOP.pdf</span>
-              <button className="action-button small">View Document</button>
-            </div>
-          </div>
-          <div className="sop-actions">
-            <div className="sop-status approved">Approved on May 12, 2025</div>
-            <div className="approval-notes">
-              <strong>Approval Notes:</strong>
-              <p>SOP meets all requirements. Approved for implementation.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      )}
+    </section>
   )
 }
 
-// Approve Budgets Section
-function ApproveBudgetsSection() {
+function MonitorStatusSection({ events, loading, setActiveSection }) {
+  const approvedEvents = events.filter(ev => ev.status === 'approved' || ev.status === 'live')
   return (
-    <div className="section-container">
-      <h2>Review and Approve Event Budgets</h2>
-      
-      <div className="filter-bar">
-        <select className="input filter-select">
-          <option value="all">All Budgets</option>
-          <option value="pending">Pending Review</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
-        <input type="text" className="input search-input" placeholder="Search by event or club..." />
-      </div>
-      
-      <div className="budget-list">
-        <div className="budget-item pending">
-          <div className="budget-header">
-            <h3>Tech Workshop</h3>
-            <div className="budget-meta">
-              <span className="budget-club">CS Club</span>
-              <span className="budget-date">Submitted: May 12, 2025</span>
-            </div>
-          </div>
-          
-          <div className="budget-details">
-            <div className="budget-summary">
-              <div className="budget-summary-item">
-                <span className="summary-label">Total Requested:</span>
-                <span className="summary-value">$1,500.00</span>
-              </div>
-              <div className="budget-summary-item">
-                <span className="summary-label">Budget Status:</span>
-                <span className="summary-value pending">Pending Review</span>
-              </div>
-            </div>
-            
-            <div className="budget-line-items">
-              <h4>Budget Line Items</h4>
-              <table className="budget-table">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Speaker Fees</td>
-                    <td>$500.00</td>
-                  </tr>
-                  <tr>
-                    <td>Equipment Rental</td>
-                    <td>$600.00</td>
-                  </tr>
-                  <tr>
-                    <td>Refreshments</td>
-                    <td>$250.00</td>
-                  </tr>
-                  <tr>
-                    <td>Marketing Materials</td>
-                    <td>$150.00</td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td><strong>Total</strong></td>
-                    <td><strong>$1,500.00</strong></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            
-            <div className="budget-documents">
-              <h4>Supporting Documents</h4>
-              <div className="document-list">
-                <div className="document-item">
-                  <span className="file-icon">📄</span>
-                  <span className="file-name">Equipment_Quote.pdf</span>
-                  <button className="action-button small">View</button>
+    <section>
+      <button onClick={() => setActiveSection('dashboard')} className="back-button" style={{marginBottom:'1rem'}}>← Back to Dashboard</button>
+      <h2>Approved/Live Events</h2>
+      {loading ? <div>Loading events...</div> : (
+        <div className="events-list">
+          {approvedEvents.length === 0 ? <p>No approved or live events.</p> : (
+            <div className="registered-events-grid">
+              {approvedEvents.map(event => (
+                <div key={event._id} className="event-card">
+                  <h3>{event.title}</h3>
+                  <p><strong>Date:</strong> {event.startDate?.slice(0,10)}</p>
+                  <p><strong>Location:</strong> {event.location}</p>
+                  <p><strong>Status:</strong> {event.status}</p>
                 </div>
-                <div className="document-item">
-                  <span className="file-icon">📄</span>
-                  <span className="file-name">Speaker_Agreement.pdf</span>
-                  <button className="action-button small">View</button>
-                </div>
-              </div>
+              ))}
             </div>
-          </div>
-          
-          <div className="budget-actions">
-            <div className="form-group">
-              <label>Adjustment Notes:</label>
-              <textarea className="input textarea" placeholder="Add notes about any budget adjustments..."></textarea>
-            </div>
-            <div className="action-buttons">
-              <button className="submit-button">Approve Budget</button>
-              <button className="action-button">Request Revisions</button>
-              <button className="cancel-button">Reject Budget</button>
-            </div>
-          </div>
+          )}
         </div>
-        
-        <div className="budget-item pending">
-          <div className="budget-header">
-            <h3>Music Festival</h3>
-            <div className="budget-meta">
-              <span className="budget-club">Music Society</span>
-              <span className="budget-date">Submitted: May 16, 2025</span>
-            </div>
-          </div>
-          
-          <div className="budget-details">
-            <div className="budget-summary">
-              <div className="budget-summary-item">
-                <span className="summary-label">Total Requested:</span>
-                <span className="summary-value">$3,500.00</span>
-              </div>
-              <div className="budget-summary-item">
-                <span className="summary-label">Budget Status:</span>
-                <span className="summary-value pending">Pending Review</span>
-              </div>
-            </div>
-            
-            <div className="budget-line-items">
-              <h4>Budget Line Items</h4>
-              <table className="budget-table">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Sound Equipment</td>
-                    <td>$1,200.00</td>
-                  </tr>
-                  <tr>
-                    <td>Stage Setup</td>
-                    <td>$800.00</td>
-                  </tr>
-                  <tr>
-                    <td>Lighting</td>
-                    <td>$650.00</td>
-                  </tr>
-                  <tr>
-                    <td>Marketing</td>
-                    <td>$350.00</td>
-                  </tr>
-                  <tr>
-                    <td>Miscellaneous</td>
-                    <td>$500.00</td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td><strong>Total</strong></td>
-                    <td><strong>$3,500.00</strong></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-          
-          <div className="budget-actions">
-            <div className="form-group">
-              <label>Adjustment Notes:</label>
-              <textarea className="input textarea" placeholder="Add notes about any budget adjustments..."></textarea>
-            </div>
-            <div className="action-buttons">
-              <button className="submit-button">Approve Budget</button>
-              <button className="action-button">Request Revisions</button>
-              <button className="cancel-button">Reject Budget</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Monitor Status Section
-function MonitorStatusSection() {
-  return (
-    <div className="section-container">
-      <h2>Monitor Event Status</h2>
-      
-      <div className="filter-bar">
-        <select className="input filter-select">
-          <option value="all">All Events</option>
-          <option value="pending">Pending Approval</option>
-          <option value="approved">Approved</option>
-          <option value="active">Active</option>
-          <option value="completed">Completed</option>
-        </select>
-        <input type="text" className="input search-input" placeholder="Search events..." />
-      </div>
-      
-      <div className="event-status-grid">
-        <div className="event-status-card pending">
-          <div className="event-status-header">
-            <h3>Music Festival</h3>
-            <div className="event-date">June 2, 2025</div>
-          </div>
-          
-          <div className="event-organizer">Music Society</div>
-          
-          <div className="approval-progress">
-            <div className="progress-item completed">
-              <div className="progress-icon">✓</div>
-              <div className="progress-label">Event Created</div>
-            </div>
-            <div className="progress-item in-progress">
-              <div className="progress-icon">⋯</div>
-              <div className="progress-label">SOP Review</div>
-            </div>
-            <div className="progress-item pending">
-              <div className="progress-icon">○</div>
-              <div className="progress-label">Budget Approval</div>
-            </div>
-            <div className="progress-item pending">
-              <div className="progress-icon">○</div>
-              <div className="progress-label">Final Approval</div>
-            </div>
-          </div>
-          
-          <div className="event-status-actions">
-            <button className="action-button">View Details</button>
-            <div className="event-status-badge pending">Pending Approval</div>
-          </div>
-        </div>
-        
-        <div className="event-status-card approved">
-          <div className="event-status-header">
-            <h3>Tech Workshop</h3>
-            <div className="event-date">May 25, 2025</div>
-          </div>
-          
-          <div className="event-organizer">CS Club</div>
-          
-          <div className="approval-progress">
-            <div className="progress-item completed">
-              <div className="progress-icon">✓</div>
-              <div className="progress-label">Event Created</div>
-            </div>
-            <div className="progress-item completed">
-              <div className="progress-icon">✓</div>
-              <div className="progress-label">SOP Approved</div>
-            </div>
-            <div className="progress-item completed">
-              <div className="progress-icon">✓</div>
-              <div className="progress-label">Budget Approved</div>
-            </div>
-            <div className="progress-item completed">
-              <div className="progress-icon">✓</div>
-              <div className="progress-label">Final Approval</div>
-            </div>
-          </div>
-          
-          <div className="event-status-actions">
-            <button className="action-button">View Details</button>
-            <div className="event-status-badge approved">Approved</div>
-          </div>
-        </div>
-        
-        <div className="event-status-card active">
-          <div className="event-status-header">
-            <h3>Career Fair</h3>
-            <div className="event-date">June 10, 2025</div>
-          </div>
-          
-          <div className="event-organizer">Career Services</div>
-          
-          <div className="approval-progress">
-            <div className="progress-item completed">
-              <div className="progress-icon">✓</div>
-              <div className="progress-label">Event Created</div>
-            </div>
-            <div className="progress-item completed">
-              <div className="progress-icon">✓</div>
-              <div className="progress-label">SOP Approved</div>
-            </div>
-            <div className="progress-item completed">
-              <div className="progress-icon">✓</div>
-              <div className="progress-label">Budget Approved</div>
-            </div>
-            <div className="progress-item completed">
-              <div className="progress-icon">✓</div>
-              <div className="progress-label">Final Approval</div>
-            </div>
-          </div>
-          
-          <div className="event-status-info">
-            <div className="info-item">
-              <span className="info-label">Registrations:</span>
-              <span className="info-value">45</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Published:</span>
-              <span className="info-value">Yes</span>
-            </div>
-          </div>
-          
-          <div className="event-status-actions">
-            <button className="action-button">View Details</button>
-            <div className="event-status-badge active">Registration Open</div>
-          </div>
-        </div>
-        
-        <div className="event-status-card pending">
-          <div className="event-status-header">
-            <h3>Hackathon 2025</h3>
-            <div className="event-date">June 15, 2025</div>
-          </div>
-          
-          <div className="event-organizer">Coding Club</div>
-          
-          <div className="approval-progress">
-            <div className="progress-item completed">
-              <div className="progress-icon">✓</div>
-              <div className="progress-label">Event Created</div>
-            </div>
-            <div className="progress-item in-progress">
-              <div className="progress-icon">⋯</div>
-              <div className="progress-label">SOP Review</div>
-            </div>
-            <div className="progress-item pending">
-              <div className="progress-icon">○</div>
-              <div className="progress-label">Budget Approval</div>
-            </div>
-            <div className="progress-item pending">
-              <div className="progress-icon">○</div>
-              <div className="progress-label">Final Approval</div>
-            </div>
-          </div>
-          
-          <div className="event-status-actions">
-            <button className="action-button">View Details</button>
-            <div className="event-status-badge pending">Pending Approval</div>
-          </div>
-        </div>
-      </div>
-    </div>
+      )}
+    </section>
   )
 } 
