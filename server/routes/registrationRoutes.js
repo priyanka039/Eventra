@@ -1,27 +1,16 @@
-const express = require('express')
-const router = express.Router()
-const { protect } = require('../middleware/auth')
-const registrationController = require('../controllers/registrationController')
+const express = require('express');
+const router = express.Router();
+const { protect, authorize } = require('../middleware/auth');
+const registrationController = require('../controllers/registrationController');
 
-// Log all registration requests
-router.use((req, res, next) => {
-  console.log('\n=== Registration Route ===')
-  console.log(`${req.method} ${req.originalUrl}`)
-  console.log('Headers:', req.headers)
-  console.log('Body:', req.body)
-  next()
-})
+// Protected routes - all require authentication
+router.post('/events/:eventId/register', protect, registrationController.createRegistration);
+router.get('/user', protect, registrationController.getUserRegistrations);
+router.patch('/:registrationId/cancel', protect, registrationController.cancelRegistration);
+router.post('/:registrationId/feedback', protect, registrationController.submitFeedback);
 
-// Create registration
-router.post('/events/:eventId/register', protect, registrationController.createRegistration)
+// Admin routes - require specific roles
+router.get('/events/:eventId', protect, authorize('president', 'management'), registrationController.getEventRegistrations);
+router.get('/all', protect, authorize('president', 'management'), registrationController.getAllRegistrations);
 
-// Get user registrations
-router.get('/', protect, registrationController.getUserRegistrations)
-
-// Cancel registration
-router.put('/:registrationId/cancel', protect, registrationController.cancelRegistration)
-
-// Submit feedback
-router.post('/:registrationId/feedback', protect, registrationController.submitFeedback)
-
-module.exports = router 
+module.exports = router;

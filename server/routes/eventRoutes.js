@@ -1,11 +1,16 @@
 const express = require('express');
 const router = express.Router();
+const { protect, authorize } = require('../middleware/auth');
 const eventController = require('../controllers/eventController');
 
-router.post('/', eventController.createEvent);
+// Public routes
 router.get('/', eventController.getAllEvents);
 router.get('/:id', eventController.getEventById);
-router.put('/:id', eventController.updateEvent);
-router.delete('/:id', eventController.deleteEvent);
+
+// Protected routes - require authentication
+router.post('/', protect, eventController.createEvent);
+router.put('/:id', protect, eventController.updateEvent);
+router.delete('/:id', protect, authorize('president', 'management'), eventController.deleteEvent);
+
 
 module.exports = router;

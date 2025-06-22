@@ -302,4 +302,90 @@ exports.submitFeedback = async (req, res) => {
       error: error.message 
     })
   }
-} 
+}
+
+// Get registrations for a specific event (Admin only)
+exports.getEventRegistrations = async (req, res) => {
+  try {
+    console.log('\n=== Get Event Registrations ===')
+    console.log('Request:', {
+      params: req.params,
+      user: req.user
+    })
+
+    const { eventId } = req.params
+
+    // Validate eventId format
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      console.log('Invalid eventId format:', eventId)
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid event ID format'
+      })
+    }
+
+    // Check if event exists
+    const event = await Event.findById(eventId)
+    if (!event) {
+      console.log('Event not found:', eventId)
+      return res.status(404).json({ 
+        success: false,
+        message: 'Event not found' 
+      })
+    }
+
+    const registrations = await Registration.find({ eventId })
+      .populate('userId', 'name email')
+      .populate('eventId', 'title description startDate endDate')
+      .sort({ registrationDate: -1 })
+
+    console.log('Found registrations for event:', registrations.length)
+
+    return res.status(200).json({
+      success: true,
+      count: registrations.length,
+      registrations
+    })
+  } catch (error) {
+    console.error('\n=== Get Event Registrations Error ===')
+    console.error('Error:', error)
+    console.error('Stack:', error.stack)
+
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error fetching event registrations', 
+      error: error.message 
+    })
+  }
+}
+
+// Get all registrations (Admin only)
+exports.getAllRegistrations = async (req, res) => {
+  try {
+    console.log('\n=== Get All Registrations ===')
+    console.log('Request user:', req.user)
+
+    const registrations = await Registration.find()
+      .populate('userId', 'name email')
+      .populate('eventId', 'title description startDate endDate club')
+      .sort({ registrationDate: -1 })
+
+    console.log('Found total registrations:', registrations.length)
+
+    return res.status(200).json({
+      success: true,
+      count: registrations.length,
+      registrations
+    })
+  } catch (error) {
+    console.error('\n=== Get All Registrations Error ===')
+    console.error('Error:', error)
+    console.error('Stack:', error.stack)
+
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error fetching all registrations', 
+      error: error.message 
+    })
+  }
+}
